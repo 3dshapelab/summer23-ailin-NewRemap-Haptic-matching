@@ -55,7 +55,6 @@
 #include <random>
 #include <functional> // to help with thread safe randomization thread
 
-#include "SOIL.h"//Library for texture mapping
 
 /********* NAMESPACE DIRECTIVES ************************/
 using namespace std;
@@ -78,7 +77,7 @@ CoordinatesExtractor headEyeCoords;
 /***** CALIBRATION FILE *****/
 #include "Calibration_017B.h"
 static const Vector3d center(0, 0, focalDistance);
-double mirrorAlignment = 45.0, screenAlignmentY = 0.0, screenAlignmentZ = 0.0;
+double mirrorAlignment = 999.0, screenAlignmentY = 999.0, screenAlignmentZ = 999.0;
 
 /********** EYES AND MARKERS **********************/
 Vector3d eyeLeft, eyeRight, eyeMiddle;
@@ -88,150 +87,159 @@ int screen1 = 19, screen2 = 20, screen3 = 21;
 int mirror1 = 6, mirror2 = 22;
 
 
-//////////////////////////////// usually no change is needed until this point //////////////////////
-
-
-/********** TRIAL SPECIFIC PARAMETERS ***************/
-//BalanceFactor<double> trial; //if using costant stimuli
-TrialGenerator<double> trial;//if using staircase: 
-
-
 /*************************** INPUT AND OUTPUT ****************************/
+string subjectName;
 // experiment directory
 string experiment_directory = "C:/Users/labdomin/Documents/data/ailin/summer23-ailin-NewRemap-Haptic/";
 
 // paramters file directory and name
 ParametersLoader parameters_subj;
 ParametersLoader parameters;
-
-// paramters file directory and name
-
-string parametersFileName_subj = experiment_directory + "ParametersFiles/Haptic_Subj.txt";
-
-string parametersFileName = experiment_directory + "ParametersFiles/parameters_Haptic_matching.txt";
+string parametersFileName_subj = experiment_directory + "parameters_summer23-ailin-NewRemap-Haptic-MASTER.txt";
+string parametersFileName = experiment_directory + "ParametersFiles/parameters_Haptic_matching_stair.txt";
 
 // response file
 ofstream responseFile;
-string responseFile_headers = "subjName\tIOD\tblockN\ttrialN\tdisplayDistance\tvisualAngle\tshapeHeight\ttexnum_std\tnomralizer_std\ttexnum_cmp\tnomralizer_cmp\tstdDepth_text\tstdDepth_disp\tcmpDepth\tstd_is_first\trespond_first_deeper\trespond_cmp_deeper\tRT\tstairID\tstair_reversal\tascending";
+string responseFile_headers = "subjName\treinforceTexture\tIOD\tblockN\ttrialN\tdisplayDist_std\tdisplayDist_cmp\tstdDepth_text\tstdDepth_disp\tcmpDepth\tstd_is_first\trespond_first_deeper\trespond_cmp_deeper\tstd_num_texDots\tcmp_num_texDots\tstair_reversal\tRT";
 
-string subjectName;
+/********** TRIAL SPECIFIC PARAMETERS ***************/
+//BalanceFactor<double> trial; //if using costant stimuli
+TrialGenerator<double> trial;//if using staircase: 
+int stairID = 0, stair_reversal = 0, ascending = 0;
 
-/**********	TRIALS **************/
+int targetCueID; // 0 for texture; 1 for dispairty
+bool reinforce_texture_disparity;
+
 int sessionNum = 0;
 int totalBlkNum = 1;
 int blkNum = 1;
+
+int totalTrNum = 90;
 int trialNum = 0;
-
-int trainNum_cap = 20;
-
 double percentComplete = 0;
-int repetition = 2;
-int totalTrNum = 120;
-int stairID = 0, stair_reversal = 0, ascending = 0;
+int trainNum_cap = 10;
+
 /********** STIMULUS SHAPE ***************/
-// stimulus shape
+// display
 double display_distance;
-double visualTarget_X = 21;
-double visual_angle = 8.0; // stim diangonal size
+double visualTarget_X = 19.6;
+double visual_angle = 7.4; // stim diangonal size
+
+// jitter in distance
+double jitter_z_std = 0, jitter_z_cmp = 0;
+double display_distance_jittered_std = display_distance + jitter_z_std;
+double display_distance_jittered_cmp = display_distance + jitter_z_cmp;
+double dist_toEye_std, dist_toEye_cmp;
 
 //height and width
 double stimulus_height = 70; //tan((DEG2RAD * visual_angle)/2) * 2 * (abs(display_distance));
 double stimulus_width = 70; //ratio_bgwidth_height * stimulus_height;
-
-double ratio_bgwidth_height = 1.4;//1.3;
-double stimulus_bgwidth = 70;
-double ratio_visiblewidth_height = 1.2;//1.1;
 double stimulus_visiblewidth = 70; //ratio_visiblewidth_height * stimulus_height;
+double ratio_width_height = 1.36;//1.3;
+double ratio_visiblewidth_height = 1.15;//1.1;
 
 // depths
-double depth_std = 32;
 double depth_stdDelta = 0;
 double depth_std_text = 32;
 double depth_std_disp = 32;
-
+double depth_std = 32;
 double depth_cmp = 30;
-double depth_stdcmpDiff = depth_std - depth_cmp;
 
 double depth_training_min = 10; // set in the subject file
 int depth_training_range = 35; // set in the subject file
 double depth_inc = 2;
 
 
-// jitter in distance
-double jitter_z_std = 0;
-double display_distance_jittered_std = display_distance + jitter_z_std;
-
-double jitter_z_cmp = 0;
-double display_distance_jittered_cmp = display_distance + jitter_z_cmp;
-
-// shapes
-enum shapeTypes { Ridge, Gaussian, Cosine, CosineRidge };
-shapeTypes current_shape = CosineRidge;
-int shapeID = 3;
-double gauss_sig_height_ratio = 0.16;
-
-/********** BLOCKING PANELS ***************/
-enum panelStates { no_aperture, black_aperture, red_aperture };
-panelStates panel_state = black_aperture; //red_aperture;
-
-
-
 /********** STIMULUS VERTICES ***************/
-int nr_points = 201;
-// vectors storing vertices data
-std::vector<GLfloat> vertices_vec_std;
-std::vector<GLfloat> texcoors_vec_std;
-std::vector<GLfloat> colors_vec_std;
-std::vector<GLfloat> normals_vec_std;
-std::vector<GLuint> indices_draw_triangle_vec_std;
+struct Vec2 {
+	float x, y;
+};
 
-std::vector<Vector3d> vertContainer_std_Rcontour;
-std::vector<Vector3d> vertContainer_std_Lcontour;
+struct CurveYLMap {
+	std::vector<double> y_vec;
+	std::vector<double> l_vec;
+	double curve_depth;
+	double curve_height;
+	double step_size;
+};
 
-
-std::vector<GLfloat> vertices_vec_cmp;
-std::vector<GLfloat> texcoors_vec_cmp;
-std::vector<GLfloat> colors_vec_cmp;
-std::vector<GLfloat> normals_vec_cmp;
-std::vector<GLuint> indices_draw_triangle_vec_cmp;
-
-std::vector<Vector3d> vertContainer_cmp_Rcontour;
-std::vector<Vector3d> vertContainer_cmp_Lcontour;
-
-//std::vector<Vector3d> vertContainer_std_Rcontour_Leye;
-//std::vector<Vector3d> vertContainer_std_Rcontour_Reye;
-//std::vector<Vector3d> vertContainer_std_Lcontour_Leye;
-//std::vector<Vector3d> vertContainer_std_Lcontour_Reye;
-
-//std::vector<Vector3d> vertContainer_cmp_Rcontour_Leye;
-//std::vector<Vector3d> vertContainer_cmp_Rcontour_Reye;
-//std::vector<Vector3d> vertContainer_cmp_Lcontour_Leye;
-//std::vector<Vector3d> vertContainer_cmp_Lcontour_Reye;
+struct CurvePtsData {
+	std::vector<double> y_vec;
+	std::vector<double> z_vec;
+	std::vector<double> l_vec;
+	double curve_depth;
+	double curve_height;
+	double step_size;
+};
 
 
-// texture map
-GLuint loaded_textures[51];
-int texnum_std = 10;
-int texnum_cmp = 1;
-double normalizer_to_uv_base = 90;
-double normalizer_to_uv_std = 90;
-double normalizer_to_uv_cmp = 90;
-double u_offset = 0.05;
-double v_offset = 0.05;
+struct TextureDotsData {
+	std::vector<Vec2> dot_center_vec;
+	Vec2 TexMapSize;
+	float Radius;
+	float margin_y;
+};
 
-// light setting
-float max_intensity = 0.8;
-float amb_intensity_std = 0.3, amb_intensity_cmp = 0.3;
-float lightDir_z = 0.6;
+struct VerticesData {
+	std::vector<GLfloat> vertices_vec;
+	std::vector<GLfloat> colors_vec;
+	std::vector<GLfloat> light_normals_vec;
+	std::vector<GLfloat> textuv_vec;
+	std::vector<GLuint> indices_draw_triangle_vec;
 
-GLfloat LightAmbient_std[] = { 0.4, 0.0f, 0.0f, 1.0f };
+};
+
+struct ContourData {
+	std::vector<Vector3f> vert_Rcontour;
+	std::vector<Vector3f> vert_Lcontour;
+};
+
+VerticesData my_vertices_data_std, my_vertices_data_cmp;
+ContourData my_contour_data_std, my_contour_data_cmp;
+float dot_number, dot_number_std, dot_number_cmp;
+
+/********** TEXTURE SURF ***************/
+int nr_curve_map = 10001;
+
+double lengthFactor_TM = 1.4; //for a depth with a curve length of l, the TM length is multiplied by this factor.
+double del_l = 0.4;
+
+int nr_points_width = 251; // nr of points in x direction
+int nr_points_height_default = 201; // default
+int nr_points_height = nr_points_height_default;
+int total_ind = 0;
+
+/********* TEXTURE *********/
+// self-generated
+float Tex_dot_radius = 2.7;
+float Tex_dot_density = 0.019;
+float Tex_dot_separation_ratio = 1.10;
+
+float texture_col_max = 1.0;
+float texture_col_min = 0.1;
+int TexDot_Lat_nr = 4;
+float TexDot_Lat_jitter = 0.4;
+
+//blur edge
+double drop_off_rate = 0.75;
+double R_intersect_factor = 2 / (1 + drop_off_rate);
+
+
+/********** LIGHT SHADING ***************/
+float max_intensity = 1.0;
+float light_amb = 0.3;
+float light_dif_std = 0.5, light_dif_cmp = 0.5;
+float lightDir_z = 0.5;
+double light_depthMin = 24;
+double light_depthMax = 40;
+
+GLfloat LightAmbient[] = { light_amb, 0.0f, 0.0f, 1.0f };
 GLfloat LightDiffuse_std[] = { 0.4, 0.0f, 0.0f, 1.0f };
-GLfloat LightAmbient_cmp[] = { 0.4, 0.0f, 0.0f, 1.0f };
 GLfloat LightDiffuse_cmp[] = { 0.4, 0.0f, 0.0f, 1.0f };
 GLfloat LightPosition[] = { 0.0f, 1.f, lightDir_z, 0.0f };
 
 /********** STATE VARIABLES ***************/
-enum Stages { stimulus_preview, prep_trial, trial_fixate_first, trial_present_first, trial_fixate_second, trial_present_second, trial_respond, break_time, exp_completed };
+enum Stages { stimulus_preview, prep_trial, trial_fixate_first, trial_present_first, trial_fixate_second, trial_present_second, trial_respond, break_time, exp_completed, trial_error };
 Stages current_stage = stimulus_preview; // if just want to look at the stimuli, use the constant present stage
 
 bool std_vs_cmp = true;
@@ -241,10 +249,8 @@ bool respond_first_deeper = true;
 bool stimulusDim_retinal_vs_physical = true;
 bool training = true;
 bool visibleInfo = true;
+bool stimulus_std_built, stimulus_cmp_built;
 
-bool resetScreen_betweenRuns = true;
-
-int errorID = 0;
 /********** TIME ***************/
 // Timer variable, set for each trial 
 Timer trial_timer;
@@ -258,8 +264,10 @@ int last_timer_frame_cnt = 0;
 int fixateFrameCnt = 40;
 int viewFrameCnt = 50;
 
-/*********** for DEBUGGING **********/
+/********** CONTROL OPTIONS ***************/
+bool resetScreen_betweenRuns = false;
 
+/*********** for DEBUGGING **********/
 
 /*************************** FUNCTIONS ***********************************/
 void initOptotrak();
@@ -271,9 +279,13 @@ void handleResize(int w, int h);
 void initProjectionScreen(double _focalDist, const Affine3d& _transformation = Affine3d::Identity(), bool synchronous = true);
 void updateTheMarkers();
 void check_apparatus_alignment();
-
 void cleanup();
 void beepOk(int tone);
+
+void drawStimulus();
+void drawInfo();
+void drawProgressBar();
+void drawFixation(double displayDist);
 
 void initBlock();
 void initTrial();
@@ -282,19 +294,19 @@ void advanceTrial();
 
 void initStimulus_std();
 void initStimulus_cmp();
-void drawStimulus();
-void drawInfo();
 
-double NewtonSolver_Cosine(double theHeight, double newDeth_zDenom, double constCos, double l_translatedDist, double y0, double z0);
-void buildVertices_congruent(bool isStandard, double shapeDepth, double textNormalizer);
-void buildVertices_incongruent(bool isStandard, double textDepth, double dispDepth, double displayDist, double textNormalizer);
-void drawVertices(bool isStandard, int texNum, double displayDist, double dispDepth);
+bool generateTexture(float TM_X, float TM_Y, float dotDensity, float dotRadius, float dotSeparationRatio_init, int nr_X_Lattice, float dotJitterScale_Lattice, TextureDotsData& outputTexDots);
+void buildVertices_Texture(double shapeWidth, const CurvePtsData& dispYCurve, const CurvePtsData& textYCurve, double distShapeToEye, TextureDotsData& TexDotsOnText, VerticesData& vertices_data);
+void buildContour_Texture(double ContourWidth, const CurvePtsData& dispYCurve, const CurvePtsData& textYCurve, float distShapeToEye, ContourData& new_contours_vert);
+bool buildTextureSurface(double shapeWidth, double shapeHeight, double dispDepth, double textDepth, double distShapeToEye, double contourPanelSeparation, VerticesData& vertices_data, ContourData& contours_vert);
+void drawTextureSurface(bool isStandard, double distShapeToEye);
+void drawContours(const ContourData& contours_vert);
 
-void drawProgressBar();
-void drawBlockingPanels(double pandelSeparation);
-void drawFixation(double displayDist);
-
-
-void drawPanels(bool isStandard, double displayDist, double dispDepth);
-int LoadGLTextures();
-float adjustAmbient(double textDepth, float maxInt, double rateAmbvsDiff_flat, double rateAmbvsDiff_deep, double Depth_flat, double Depth_deep);
+double getZ(double shapeHeight, double shapeDepth, double vertexY);
+double getTg(double shapeHeight, double shapeDepth, double Y);
+double SolveForZ_projected(double theHeight, double newDepth, double l, double y0, double z0);
+void scanCurve(double shapeHeight, double shapeDepth, CurveYLMap& output_curve_ylmap);
+void projectCurve(const CurveYLMap& curve_map_proj, double distShapeToEye, const CurvePtsData& origin_curve, CurvePtsData& output_curve_proj);
+Vector3d projectPoint(double shapeHeight, double newDepth, double distShapeToEye, Vector3d fromPoint);
+float adjustDiffLight(double textDepth, float maxInt, float ambInt, double Depth_flat, double Depth_deep);
+void makeParsFileCopy(string filename_original, string filename_copy);
