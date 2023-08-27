@@ -15,6 +15,14 @@ double getTg(double shapeHeight, double shapeDepth, double Y) {
 	return (-shapeDepth * sin(M_PI * Y / shapeHeight) * M_PI / shapeHeight);
 }
 
+float adjustAmbient(double textDepth, float maxInt, double rateAmbvsDiff_flat, double rateAmbvsDiff_deep, double Depth_flat, double Depth_deep) {
+
+	double rateAmbvsDiff_new = rateAmbvsDiff_flat + (rateAmbvsDiff_deep - rateAmbvsDiff_flat) * (textDepth - Depth_flat) / (Depth_deep - Depth_flat);
+	float newAmbient = maxInt * (rateAmbvsDiff_new / (rateAmbvsDiff_new + 1));
+
+	return newAmbient;
+}
+/*
 float adjustDiffLight(double textDepth, float maxInt, float ambInt, double Depth_flat, double Depth_deep) {
 
 	float newDiff = ambInt;
@@ -25,7 +33,7 @@ float adjustDiffLight(double textDepth, float maxInt, float ambInt, double Depth
 		newDiff = newDiff + (textDepth - Depth_flat) / (Depth_deep - textDepth) * (maxInt - 2 * ambInt);
 
 	return newDiff;
-}
+}*/
 
 double NewtonSolver_fz(double z, double Depth, double zCoeff, double distShapeToEye) {
 	double val = z / Depth - cos(zCoeff * (z - distShapeToEye));
@@ -545,7 +553,7 @@ void drawTextureSurface(bool isStandard, double distShapeToEye) {
 
 	if (isStandard) {
 
-		glLightfv(GL_LIGHT1, GL_AMBIENT, LightAmbient); //setup the ambient light
+		glLightfv(GL_LIGHT1, GL_AMBIENT, LightAmbient_std); //setup the ambient light
 		glLightfv(GL_LIGHT1, GL_DIFFUSE, LightDiffuse_std); //setup the diffuse light
 		glLightfv(GL_LIGHT1, GL_POSITION, LightPosition); //position the light
 
@@ -565,7 +573,7 @@ void drawTextureSurface(bool isStandard, double distShapeToEye) {
 	}
 	else {
 		//setting the light
-		glLightfv(GL_LIGHT1, GL_AMBIENT, LightAmbient); //setup the ambient light
+		glLightfv(GL_LIGHT1, GL_AMBIENT, LightAmbient_cmp); //setup the ambient light
 		glLightfv(GL_LIGHT1, GL_DIFFUSE, LightDiffuse_cmp); //setup the diffuse light
 		glLightfv(GL_LIGHT1, GL_POSITION, LightPosition); //position the light
 
@@ -785,7 +793,6 @@ void initBlock()
 {
 	// initialize the trial matrix
 	trial.init(parameters);
-	//trial.next();
 	trial.next(false);
 
 	trialNum = 1;
@@ -959,10 +966,8 @@ void drawInfo()
 		case trial_respond:
 
 			glColor3fv(glRed);
-			text.draw("# Name: " + subjectName);
-			text.draw("# IOD: " + stringify<double>(interoculardistance));
 			text.draw("# trial: " + stringify<int>(trialNum));
-			//text.draw("# time: " + stringify<double>(ElapsedTime));
+			text.draw("# current stage: " + stringify<int>(current_stage));
 			//text.draw("# STD depth texture: " + stringify<double>(depth_std_text));
 			//text.draw("# STD depth stereo: " + stringify<double>(depth_std_disp));
 			text.draw("                           ");
@@ -970,6 +975,8 @@ void drawInfo()
 
 			// check if mirror is calibrated				
 			text.draw("# !!!!Mirror Alignment = " + stringify<double>(mirrorAlignment));
+			if (mirrorAlignment > 180)
+				text.draw("Mirror1 " + stringify< Eigen::Matrix<double, 1, 3> >(markers[mirror1].p.transpose()) + "   Mirror 2 " + stringify< Eigen::Matrix<double, 1, 3> >(markers[mirror2].p.transpose()));
 
 			break;
 
@@ -1073,6 +1080,13 @@ void drawStimulus()
 
 void initTrial()
 {
+
+	ignore_trial = false;
+	std::vector<int> temp_answers;
+	temp_answers = trial.getCurrent().second->getCurrentStaircase()->getAnswers();
+	if (temp_answers.size() < 1) {
+		trial.next(false);
+	}
 	current_stage = prep_trial;
 	initProjectionScreen(display_distance);
 
@@ -1104,7 +1118,7 @@ void initTrial()
 		depth_cmp = trial.getCurrent().second->getCurrentStaircase()->getState();
 	}
 
-	double jitter_del = (rand() % 17) - 8.0; // from -10 to 10
+	double jitter_del = (rand() % 11) - 5.0; // 
 
 	jitter_z_std = jitter_del; // from -8 to 8
 	jitter_z_cmp = -jitter_del; // from 8 to -8
@@ -1219,7 +1233,7 @@ void advanceTrial()
 			subjectName << "\t" <<
 			(1 - targetCueID) << "\t" <<
 			interoculardistance << "\t" <<
-			blkNum << "\t" <<
+			sessionNum << "\t" <<
 			trialNum << "\t" <<
 			display_distance_jittered_std << "\t" <<
 			display_distance_jittered_cmp << "\t" <<
@@ -1577,9 +1591,13 @@ void initStimulus_std() {
 	stimulus_std_built = buildTextureSurface(stimulus_width, stimulus_height, depth_std_disp, depth_std_text, dist_toEye_std, stimulus_visiblewidth, my_vertices_data_std, my_contour_data_std);
 	dot_number_std = dot_number;
 	// Light source parameters
-	light_dif_std = adjustDiffLight(depth_std_text, max_intensity, light_amb, light_depthMin, light_depthMax);
-	LightDiffuse_std[0] = light_dif_std;
+	max_intensity = min_intensity + (1.0 - min_intensity) * (depth_std_text - light_depthMin) / (light_depthMax - light_depthMin);
+	light_amb_std = adjustAmbient(depth_std_text, max_intensity, 1.0, 0.4, light_depthMin, light_depthMax);
+	light_dif_std = max_intensity - light_amb_std;
 
+	LightAmbient_std[0] = light_amb_std;
+	LightDiffuse_std[0] = light_dif_std;
+	
 }
 
 
@@ -1592,7 +1610,12 @@ void initStimulus_cmp() {
 
 	stimulus_cmp_built = buildTextureSurface(stimulus_width, stimulus_height, depth_cmp, depth_cmp, dist_toEye_cmp, stimulus_visiblewidth, my_vertices_data_cmp, my_contour_data_cmp);
 	dot_number_cmp = dot_number;
-	light_dif_cmp = adjustDiffLight(depth_cmp, max_intensity, light_amb, light_depthMin, light_depthMax);
+
+	max_intensity = min_intensity + (1.0 - min_intensity) * (depth_cmp - light_depthMin) / (light_depthMax - light_depthMin);
+	light_amb_cmp = adjustAmbient(depth_cmp, max_intensity, 1.0, 0.4, light_depthMin, light_depthMax);
+	light_dif_cmp = max_intensity - light_amb_cmp;
+
+	LightAmbient_cmp[0] = light_amb_cmp;
 	LightDiffuse_cmp[0] = light_dif_cmp;
 
 }

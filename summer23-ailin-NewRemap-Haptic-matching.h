@@ -100,7 +100,7 @@ string parametersFileName = experiment_directory + "ParametersFiles/parameters_H
 
 // response file
 ofstream responseFile;
-string responseFile_headers = "subjName\treinforceTexture\tIOD\tblockN\ttrialN\tdisplayDist_std\tdisplayDist_cmp\tstdDepth_text\tstdDepth_disp\tcmpDepth\tstd_is_first\trespond_first_deeper\trespond_cmp_deeper\tstd_num_texDots\tcmp_num_texDots\tstair_reversal\tRT";
+string responseFile_headers = "subjName\treinforceTexture\tIOD\tsessionN\ttrialN\tdisplayDist_std\tdisplayDist_cmp\tstdDepth_text\tstdDepth_disp\tcmpDepth\tstd_is_first\trespond_first_deeper\trespond_cmp_deeper\tstd_num_texDots\tcmp_num_texDots\tstair_reversal\tRT";
 
 /********** TRIAL SPECIFIC PARAMETERS ***************/
 //BalanceFactor<double> trial; //if using costant stimuli
@@ -118,6 +118,7 @@ int totalTrNum = 90;
 int trialNum = 0;
 double percentComplete = 0;
 int trainNum_cap = 10;
+bool ignore_trial = false;
 
 /********** STIMULUS SHAPE ***************/
 // display
@@ -227,13 +228,15 @@ double R_intersect_factor = 2 / (1 + drop_off_rate);
 
 /********** LIGHT SHADING ***************/
 float max_intensity = 1.0;
-float light_amb = 0.3;
+float min_intensity = 0.75;
+float light_amb_std = 0.3, light_amb_cmp = 0.3;
 float light_dif_std = 0.5, light_dif_cmp = 0.5;
 float lightDir_z = 0.5;
 double light_depthMin = 24;
 double light_depthMax = 40;
 
-GLfloat LightAmbient[] = { light_amb, 0.0f, 0.0f, 1.0f };
+GLfloat LightAmbient_std[] = { 0.3, 0.0f, 0.0f, 1.0f };
+GLfloat LightAmbient_cmp[] = { 0.3, 0.0f, 0.0f, 1.0f };
 GLfloat LightDiffuse_std[] = { 0.4, 0.0f, 0.0f, 1.0f };
 GLfloat LightDiffuse_cmp[] = { 0.4, 0.0f, 0.0f, 1.0f };
 GLfloat LightPosition[] = { 0.0f, 1.f, lightDir_z, 0.0f };
@@ -308,5 +311,6 @@ double SolveForZ_projected(double theHeight, double newDepth, double l, double y
 void scanCurve(double shapeHeight, double shapeDepth, CurveYLMap& output_curve_ylmap);
 void projectCurve(const CurveYLMap& curve_map_proj, double distShapeToEye, const CurvePtsData& origin_curve, CurvePtsData& output_curve_proj);
 Vector3d projectPoint(double shapeHeight, double newDepth, double distShapeToEye, Vector3d fromPoint);
-float adjustDiffLight(double textDepth, float maxInt, float ambInt, double Depth_flat, double Depth_deep);
+//float adjustDiffLight(double textDepth, float maxInt, float ambInt, double Depth_flat, double Depth_deep);
+float adjustAmbient(double textDepth, float maxInt, double rateAmbvsDiff_flat, double rateAmbvsDiff_deep, double Depth_flat, double Depth_deep);
 void makeParsFileCopy(string filename_original, string filename_copy);
