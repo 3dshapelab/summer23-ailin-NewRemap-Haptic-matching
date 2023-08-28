@@ -673,7 +673,7 @@ void drawFixation(double displayDist) {
 
 // This function seems to be used to shut down the system after use
 void shutdown() {
-	cout << "shutting down" << endl;
+	
 	responseFile.close(); // close this object
 	if (resetScreen_betweenRuns) {
 		homeEverything(5000, 4500);
@@ -796,6 +796,9 @@ void initBlock()
 	trial.next(false);
 
 	trialNum = 1;
+
+	if (sessionNum == 1)
+		trainNum_cap = trainNum_cap + 4;
 }
 
 
@@ -948,18 +951,20 @@ void drawInfo()
 		case stimulus_preview:
 			glColor3fv(glWhite);
 			text.draw("Welcome! press + to start training");
-			text.draw("# Name: " + subjectName);
+			text.draw("# Alias: " + subjectName);
 			text.draw("# IOD: " + stringify<double>(interoculardistance));
-			//text.draw("# depth texture: " + stringify<double>(depth_std_text));
-			//text.draw("# depth stereo: " + stringify<double>(depth_std_disp));
+
+			
 			text.draw("                           ");
-			text.draw("Mirror1 Marker " + stringify< Eigen::Matrix<double, 1, 3> >(markers[mirror1].p.transpose()));
-			text.draw("Mirror2 Marker " + stringify< Eigen::Matrix<double, 1, 3> >(markers[mirror2].p.transpose()));
 			if (abs(mirrorAlignment - 45.0) > 0.2)
 				glColor3fv(glRed);
 			else
 				glColor3fv(glGreen);
 			text.draw("# !!!!Mirror Alignment = " + stringify<double>(mirrorAlignment));
+
+			if (mirrorAlignment > 180)
+				text.draw("Mirror1 " + stringify< Eigen::Matrix<double, 1, 3> >(markers[mirror1].p.transpose()) + "   Mirror 2 " + stringify< Eigen::Matrix<double, 1, 3> >(markers[mirror2].p.transpose()));
+
 
 			break;
 
@@ -1109,13 +1114,16 @@ void initTrial()
 		stairID = trial.getCurrent().second->getCurrentStaircase()->getID();
 		stair_reversal = trial.getCurrent().second->getCurrentStaircase()->getReversals();
 		ascending = trial.getCurrent().second->getCurrentStaircase()->getAscending();
-
 		depth_std = trial.getCurrent().first["stdDepth"];
+		
 		depth_stdDelta = trial.getCurrent().first["stdDepthDelta"];
 		depth_std_text = depth_std + depth_stdDelta;
 		depth_std_disp = depth_std - depth_stdDelta;
 
+		//cout << "trN: " << trialNum << "    std depth: T" << depth_std_text << " D" << depth_std_disp << endl;
+
 		depth_cmp = trial.getCurrent().second->getCurrentStaircase()->getState();
+		//cout << "trN: " << trialNum << "    cmp depth: " << depth_cmp  << endl;
 	}
 
 	double jitter_del = (rand() % 11) - 5.0; // 

@@ -117,7 +117,7 @@ int blkNum = 1;
 int totalTrNum = 90;
 int trialNum = 0;
 double percentComplete = 0;
-int trainNum_cap = 10;
+int trainNum_cap = 6;
 bool ignore_trial = false;
 
 /********** STIMULUS SHAPE ***************/
@@ -228,7 +228,7 @@ double R_intersect_factor = 2 / (1 + drop_off_rate);
 
 /********** LIGHT SHADING ***************/
 float max_intensity = 1.0;
-float min_intensity = 0.75;
+float min_intensity = 0.7;
 float light_amb_std = 0.3, light_amb_cmp = 0.3;
 float light_dif_std = 0.5, light_dif_cmp = 0.5;
 float lightDir_z = 0.5;
